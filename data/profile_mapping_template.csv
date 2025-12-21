@@ -1,0 +1,4 @@
+profile_name,profile_uuid,proxy_host,proxy_port,proxy_username,proxy_password,multilogin_account,notes
+TIKTOK1,abc123-def456-ghi789-jkl012,gate.nodemaven.com,8080,session_id_1,password_1,account1@example.com,US proxy
+TIKTOK2,bcd234-efg567-hij890-klm123,gate.nodemaven.com,8080,session_id_2,password_2,account1@example.com,GB proxy
+TIKTOK3,cde345-fgh678-ijk901-lmn234,gate.nodemaven.com,8080,session_id_3,password_3,account2@example.com,CA proxy
