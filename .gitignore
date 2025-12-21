@@ -13,7 +13,7 @@
 *.env
 
 # Profile mapping with credentials
-data/profile_mapping.csv
+# data/profile_mapping.csv  # Commented out - file will be committed (repo is private)
 
 # Proxy credentials
 data/nodemaven_proxies.txt
