@@ -20,13 +20,13 @@ from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
 
-from moviepy.editor import (
+from moviepy import (
     VideoFileClip,
     TextClip,
     CompositeVideoClip,
     concatenate_videoclips
 )
-from moviepy.video.fx import resize, crop
+from moviepy.video import fx
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class VideoProcessor:
                 else:  # right
                     x1 = orig_width - new_width
                 
-                clip = crop.crop(clip, x1=int(x1), width=new_width)
+                clip = fx.crop(clip, x1=int(x1), width=new_width)
             
             elif orig_aspect < self.TIKTOK_ASPECT_RATIO:
                 # Video is too tall - crop top/bottom
@@ -124,10 +124,10 @@ class VideoProcessor:
                 else:  # bottom
                     y1 = orig_height - new_height
                 
-                clip = crop.crop(clip, y1=int(y1), height=new_height)
+                clip = fx.crop(clip, y1=int(y1), height=new_height)
             
             # Resize to TikTok dimensions
-            clip = resize.resize(clip, (self.TIKTOK_WIDTH, self.TIKTOK_HEIGHT))
+            clip = fx.resize(clip, (self.TIKTOK_WIDTH, self.TIKTOK_HEIGHT))
             
             # Set FPS
             clip = clip.set_fps(self.TIKTOK_FPS)

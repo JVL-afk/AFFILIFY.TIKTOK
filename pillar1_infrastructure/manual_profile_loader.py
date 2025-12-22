@@ -189,17 +189,32 @@ class ManualProfileLoader:
                     # For now, we'll skip duplicates
                     continue
                 
-                # Add profile to database
-                self.database.add_profile(
-                    name=profile['name'],
-                    multilogin_uuid=profile['uuid'],
-                    multilogin_folder_id='',  # Not needed for manual mapping
-                    proxy_host=profile['proxy']['host'],
-                    proxy_port=profile['proxy']['port'],
-                    proxy_username=profile['proxy']['username'],
-                    proxy_password=profile['proxy']['password'],
-                    status='active'
-                )
+                # Add profile to database using the correct method
+                profile_data = {
+                    'profile_id': profile['uuid'],
+                    'profile_name': profile['name'],
+                    'proxy_index': len(self.loaded_profiles),  # Use index as proxy assignment
+                    'country_code': profile.get('notes', 'XX')[:2],  # Extract country code from notes
+                    'timezone': 'UTC',  # Default timezone
+                    'browser_type': 'mimic',  # Default browser type
+                    'os_type': 'android',  # Default OS type
+                    'notes': f"Proxy: {profile['proxy']['host']}:{profile['proxy']['port']}"
+                }
+                self.database.insert_multilogin_profile(profile_data)
+                
+                # Also insert proxy assignment
+                proxy_data = {
+                    'proxy_index': len(self.loaded_profiles),
+                    'account_name': profile['name'],
+                    'country_code': profile.get('notes', 'XX')[:2].upper(),
+                    'host': profile['proxy']['host'],
+                    'port': int(profile['proxy']['port']),
+                    'username': profile['proxy']['username'],
+                    'password': profile['proxy']['password'],
+                    'proxy_type': 'mobile',  # Fixed field name
+                    'session_id': profile['proxy']['username']  # Use username as session_id
+                }
+                self.database.insert_proxy_assignment(proxy_data)
                 
                 self.loaded_profiles.append(profile)
                 logger.info(f"  ✓ Saved {profile['name']} to database")
