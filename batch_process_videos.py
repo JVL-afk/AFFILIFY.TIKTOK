@@ -28,6 +28,7 @@ from typing import List
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pillar2_content_processing.video_processor import VideoProcessor
+from pillar2_content_processing.video_splitter import VideoSplitter
 from pillar2_content_processing.music_selector import MusicSelector
 from pillar4_content_strategy.viral_caption_generator import ViralCaptionGenerator
 
@@ -70,6 +71,7 @@ class BatchVideoProcessor:
         
         # Initialize processors
         self.video_processor = VideoProcessor(str(self.output_dir / "processed"))
+        self.video_splitter = VideoSplitter(str(self.output_dir / "split"))
         self.music_selector = MusicSelector()
         self.caption_generator = ViralCaptionGenerator()
         
@@ -117,7 +119,7 @@ class BatchVideoProcessor:
     
     def process_video(self, video_path: Path, batch_num: int, video_num: int) -> dict:
         """
-        Process a single video.
+        Process a single video - creates 2 viral clips!
         
         Args:
             video_path: Path to video file
@@ -130,56 +132,81 @@ class BatchVideoProcessor:
         logger.info(f"  Processing: {video_path.name}")
         
         try:
-            # 1. Convert to TikTok format (9:16, 1080x1920)
-            logger.info(f"    Converting to TikTok format...")
-            output_name = f"batch{batch_num}_video{video_num}_{video_path.stem}.mp4"
+            # 1. Convert to TikTok format (9:16, 1080x1920) with NO CROPPING
+            logger.info(f"    Converting to TikTok format (resize + padding, NO CROP)...")
+            base_name = f"batch{batch_num}_video{video_num}_{video_path.stem}"
             processed_path = self.video_processor.convert_to_tiktok_format(
                 str(video_path),
-                output_name
+                f"{base_name}.mp4"
             )
             
-            # 2. Generate caption
-            logger.info(f"    Generating viral caption...")
-            video_description = f"AFFILIFY AI website builder demo - {video_path.stem}"
-            caption = self.caption_generator.generate_viral_caption(
-                video_description,
-                hook_type=None,  # Random hook type
-                include_question=(video_num % 3 == 0)  # Every 3rd video has question
-            )
+            # 2. Split into 2 viral clips (30 seconds each)
+            logger.info(f"    Splitting into 2 viral clips...")
+            clips = self.video_splitter.split_video(processed_path, base_name=base_name)
             
-            # Save caption
-            caption_file = self.output_dir / "captions" / f"{output_name}.txt"
-            with open(caption_file, 'w', encoding='utf-8') as f:
-                f.write(caption['full_caption'])
+            if not clips:
+                raise Exception("Failed to split video into clips")
             
-            # 3. Select music
-            logger.info(f"    Selecting trending music...")
-            music_rec = self.music_selector.find_royalty_free_match(video_description)
+            logger.info(f"    ✅ Created {len(clips)} clips!")
             
-            # Save music recommendation
-            music_file = self.output_dir / "music_reports" / f"{output_name}_music.txt"
-            with open(music_file, 'w', encoding='utf-8') as f:
-                if music_rec.get('recommendations'):
-                    track = music_rec['recommendations'][0]
-                    f.write(f"MUSIC RECOMMENDATION\n")
-                    f.write(f"=" * 60 + "\n")
-                    f.write(f"Title: {track.get('title', 'N/A')}\n")
-                    f.write(f"Artist: {track.get('artist', 'N/A')}\n")
-                    f.write(f"Source: {track.get('source', 'N/A')}\n")
-                    f.write(f"Style: {track.get('style', 'N/A')}\n")
-                    f.write(f"Search: {track.get('search_keywords', 'N/A')}\n")
-                    f.write(f"Link: {track.get('link', 'N/A')}\n")
+            # 3. Generate captions and music for each clip
+            clip_results = []
+            for clip in clips:
+                clip_num = clip['clip_number']
+                clip_path = clip['path']
+                clip_name = Path(clip_path).name
+                
+                logger.info(f"    Processing Clip {clip_num}...")
+                
+                # Generate caption
+                video_description = f"AFFILIFY AI website builder - {clip['description']}"
+                caption = self.caption_generator.generate_viral_caption(
+                    video_description,
+                    hook_type=None,  # Random hook type
+                    include_question=(clip_num == 1)  # Clip 1 gets question
+                )
+                
+                # Save caption
+                caption_file = self.output_dir / "captions" / f"{clip_name}.txt"
+                with open(caption_file, 'w', encoding='utf-8') as f:
+                    f.write(caption['full_caption'])
+                
+                # Select music
+                music_rec = self.music_selector.find_royalty_free_match(video_description)
+                
+                # Save music recommendation
+                music_file = self.output_dir / "music_reports" / f"{clip_name}_music.txt"
+                with open(music_file, 'w', encoding='utf-8') as f:
+                    if music_rec.get('recommendations'):
+                        track = music_rec['recommendations'][0]
+                        f.write(f"MUSIC RECOMMENDATION\n")
+                        f.write(f"=" * 60 + "\n")
+                        f.write(f"Title: {track.get('title', 'N/A')}\n")
+                        f.write(f"Artist: {track.get('artist', 'N/A')}\n")
+                        f.write(f"Source: {track.get('source', 'N/A')}\n")
+                        f.write(f"Style: {track.get('style', 'N/A')}\n")
+                        f.write(f"Search: {track.get('search_keywords', 'N/A')}\n")
+                        f.write(f"Link: {track.get('link', 'N/A')}\n")
+                
+                clip_results.append({
+                    'clip_number': clip_num,
+                    'clip_path': clip_path,
+                    'duration': clip['duration'],
+                    'description': clip['description'],
+                    'caption_file': str(caption_file),
+                    'music_file': str(music_file),
+                    'caption': caption,
+                    'music': music_rec
+                })
             
-            logger.info(f"    ✅ Processed successfully!")
+            logger.info(f"    ✅ Processed successfully - {len(clips)} clips ready!")
             
             return {
                 'status': 'success',
                 'input_path': str(video_path),
-                'output_path': processed_path,
-                'caption_file': str(caption_file),
-                'music_file': str(music_file),
-                'caption': caption,
-                'music': music_rec
+                'processed_path': processed_path,
+                'clips': clip_results,
+                'clip_count': len(clips)
             }
         
         except Exception as e:
@@ -269,6 +296,10 @@ class BatchVideoProcessor:
             for batch in all_results
         )
         total_failed = total_videos - total_successful
+        total_clips = sum(
+            sum(r.get('clip_count', 0) for r in batch if r['status'] == 'success')
+            for batch in all_results
+        )
         
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write("=" * 80 + "\n")
@@ -281,6 +312,7 @@ class BatchVideoProcessor:
             f.write(f"Total videos processed: {total_videos}\n")
             f.write(f"Successful: {total_successful}\n")
             f.write(f"Failed: {total_failed}\n")
+            f.write(f"Total clips created: {total_clips} (2 per video)\n")
             f.write(f"Success rate: {(total_successful/total_videos*100):.1f}%\n")
             f.write(f"\n")
             f.write(f"BATCH BREAKDOWN\n")
@@ -304,17 +336,24 @@ class BatchVideoProcessor:
             f.write(f"\n")
             f.write(f"OUTPUT LOCATIONS\n")
             f.write(f"-" * 80 + "\n")
-            f.write(f"Processed videos: {self.output_dir / 'processed'}\n")
+            f.write(f"Full-length videos: {self.output_dir / 'processed'}\n")
+            f.write(f"30-second clips: {self.output_dir / 'split'}\n")
             f.write(f"Captions: {self.output_dir / 'captions'}\n")
             f.write(f"Music recommendations: {self.output_dir / 'music_reports'}\n")
             f.write(f"\n")
             f.write(f"=" * 80 + "\n")
             f.write(f"NEXT STEPS\n")
             f.write(f"=" * 80 + "\n")
-            f.write(f"1. Review processed videos in: {self.output_dir / 'processed'}\n")
+            f.write(f"1. Review 30-second clips in: {self.output_dir / 'split'}\n")
             f.write(f"2. Check captions in: {self.output_dir / 'captions'}\n")
             f.write(f"3. Download music from recommendations\n")
-            f.write(f"4. Run posting script to upload to TikTok\n")
+            f.write(f"4. Post the 30-second clips to TikTok (NOT the full-length videos!)\n")
+            f.write(f"\n")
+            f.write(f"IMPORTANT: Each video created 2 clips (30s each):\n")
+            f.write(f"  - Clip 1: Hook + Finale (First 10s + Last 20s)\n")
+            f.write(f"  - Clip 2: The Payoff (Last 30s)\n")
+            f.write(f"\n")
+            f.write(f"Total clips ready to post: {total_clips}\n")
             f.write(f"\n")
         
         logger.info(f"\n📊 Summary report saved to: {report_path}")

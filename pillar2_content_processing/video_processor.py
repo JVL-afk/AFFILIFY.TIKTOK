@@ -24,6 +24,7 @@ from moviepy import (
     VideoFileClip,
     TextClip,
     CompositeVideoClip,
+    ColorClip,
     concatenate_videoclips
 )
 from moviepy.video import fx
@@ -97,37 +98,45 @@ class VideoProcessor:
             
             logger.debug(f"Original size: {orig_width}x{orig_height} (aspect: {orig_aspect:.2f})")
             
-            # Determine if we need to crop or letterbox
-            if orig_aspect > self.TIKTOK_ASPECT_RATIO:
-                # Video is too wide - crop the sides
-                new_width = int(orig_height * self.TIKTOK_ASPECT_RATIO)
-                
-                if crop_method == "center":
-                    x_center = orig_width / 2
-                    x1 = x_center - new_width / 2
-                elif crop_method == "left":
-                    x1 = 0
-                else:  # right
-                    x1 = orig_width - new_width
-                
-                clip = clip.cropped(x1=int(x1), width=new_width)
+            # Resize to fit TikTok dimensions while maintaining aspect ratio
+            # This ensures ALL content is visible (no cropping!)
             
-            elif orig_aspect < self.TIKTOK_ASPECT_RATIO:
-                # Video is too tall - crop top/bottom
-                new_height = int(orig_width / self.TIKTOK_ASPECT_RATIO)
-                
-                if crop_method == "center":
-                    y_center = orig_height / 2
-                    y1 = y_center - new_height / 2
-                elif crop_method == "top":
-                    y1 = 0
-                else:  # bottom
-                    y1 = orig_height - new_height
-                
-                clip = clip.cropped(y1=int(y1), height=new_height)
+            # Calculate the scaling factor to fit within TikTok dimensions
+            scale_width = self.TIKTOK_WIDTH / orig_width
+            scale_height = self.TIKTOK_HEIGHT / orig_height
+            scale_factor = min(scale_width, scale_height)  # Use smaller scale to fit everything
             
-            # Resize to TikTok dimensions
-            clip = clip.resized((self.TIKTOK_WIDTH, self.TIKTOK_HEIGHT))
+            # Calculate new dimensions
+            new_width = int(orig_width * scale_factor)
+            new_height = int(orig_height * scale_factor)
+            
+            logger.debug(f"Scaling to: {new_width}x{new_height} (scale: {scale_factor:.2f})")
+            
+            # Resize the clip
+            clip = clip.resized((new_width, new_height))
+            
+            # Add padding (black bars) to reach exact TikTok dimensions
+            if new_width < self.TIKTOK_WIDTH or new_height < self.TIKTOK_HEIGHT:
+                from moviepy import ColorClip
+                
+                # Create black background
+                background = ColorClip(
+                    size=(self.TIKTOK_WIDTH, self.TIKTOK_HEIGHT),
+                    color=(0, 0, 0),
+                    duration=clip.duration
+                )
+                
+                # Calculate position to center the video
+                x_pos = (self.TIKTOK_WIDTH - new_width) // 2
+                y_pos = (self.TIKTOK_HEIGHT - new_height) // 2
+                
+                # Composite video on background
+                clip = CompositeVideoClip(
+                    [background, clip.with_position((x_pos, y_pos))],
+                    size=(self.TIKTOK_WIDTH, self.TIKTOK_HEIGHT)
+                )
+                
+                logger.debug(f"Added padding at position ({x_pos}, {y_pos})")
             
             # Set FPS
             clip = clip.with_fps(self.TIKTOK_FPS)
