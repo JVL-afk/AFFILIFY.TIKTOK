@@ -110,7 +110,7 @@ class VideoProcessor:
                 else:  # right
                     x1 = orig_width - new_width
                 
-                clip = fx.crop(clip, x1=int(x1), width=new_width)
+                clip = clip.cropped(x1=int(x1), width=new_width)
             
             elif orig_aspect < self.TIKTOK_ASPECT_RATIO:
                 # Video is too tall - crop top/bottom
@@ -124,19 +124,23 @@ class VideoProcessor:
                 else:  # bottom
                     y1 = orig_height - new_height
                 
-                clip = fx.crop(clip, y1=int(y1), height=new_height)
+                clip = clip.cropped(y1=int(y1), height=new_height)
             
             # Resize to TikTok dimensions
-            clip = fx.resize(clip, (self.TIKTOK_WIDTH, self.TIKTOK_HEIGHT))
+            clip = clip.resized((self.TIKTOK_WIDTH, self.TIKTOK_HEIGHT))
             
             # Set FPS
-            clip = clip.set_fps(self.TIKTOK_FPS)
+            clip = clip.with_fps(self.TIKTOK_FPS)
             
             # Generate output path if not provided
             if output_path is None:
                 input_name = Path(input_path).stem
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 output_path = self.output_dir / f"{input_name}_tiktok_{timestamp}.mp4"
+            else:
+                # If output_path is just a filename, prepend output_dir
+                if not Path(output_path).is_absolute():
+                    output_path = self.output_dir / output_path
             
             # Write the output
             clip.write_videofile(

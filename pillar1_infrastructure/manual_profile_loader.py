@@ -183,10 +183,9 @@ class ManualProfileLoader:
                 existing = self.database.get_profile_by_uuid(profile['uuid'])
                 
                 if existing:
-                    logger.info(f"  Profile {profile['name']} already in database, updating...")
-                    # Update existing profile
-                    # Note: We'd need to add an update method to the database class
-                    # For now, we'll skip duplicates
+                    logger.info(f"  Profile {profile['name']} already in database, skipping...")
+                    # Count as loaded since it's already there
+                    self.loaded_profiles.append(profile)
                     continue
                 
                 # Add profile to database using the correct method
