@@ -118,11 +118,11 @@ class MusicIntegrator:
             elif music.duration < video.duration:
                 # Loop music to fill video length
                 loops_needed = int(video.duration / music.duration) + 1
-                music = music.with_effects([lambda c: c.audio_loop(n=loops_needed)])
+                music = music.audio_loop(n=loops_needed)
                 music = music.subclipped(0, video.duration)
             
             # Reduce music volume
-            music = music.with_effects([lambda c: c.multiply_volume(music_volume)])
+            music = music.multiply_volume(music_volume)
             
             # Combine original audio with music
             if video.audio:
