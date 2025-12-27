@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip
+from moviepy.audio.fx import MultiplyVolume, AudioLoop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -118,11 +119,11 @@ class MusicIntegrator:
             elif music.duration < video.duration:
                 # Loop music to fill video length
                 loops_needed = int(video.duration / music.duration) + 1
-                music = music.audio_loop(n=loops_needed)
+                music = AudioLoop(music, n=loops_needed)
                 music = music.subclipped(0, video.duration)
             
             # Reduce music volume
-            music = music.multiply_volume(music_volume)
+            music = MultiplyVolume(music, music_volume)
             
             # Combine original audio with music
             if video.audio:
