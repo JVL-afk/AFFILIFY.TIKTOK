@@ -16,6 +16,9 @@ import sys
 import logging
 import time
 import random
+import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from typing import Dict, Any, Optional
 from pathlib import Path
 
@@ -77,24 +80,80 @@ class TikTokPoster:
         """Context manager exit."""
         self.close_browser()
     
+    def _connect_to_running_profile(self, profile_uuid: str, automation_type: str = "playwright") -> Dict[str, Any]:
+        """
+        Connect to an already-running MultiLogin profile using Local Launcher API.
+        
+        This is used when multilogin_client is None (no credentials).
+        Assumes the profile is already manually started in MultiLogin app.
+        
+        Args:
+            profile_uuid: UUID of the already-running profile
+            automation_type: Type of automation ("playwright" or "selenium")
+        
+        Returns:
+            Dictionary containing connection information (ws_endpoint, http_debug_port, etc.)
+        
+        Raises:
+            TikTokPosterError: If connection fails
+        """
+        launcher_url = "https://launcher.mlx.yt:45001/api/v1/profile/start"
+        
+        params = {
+            "automation_type": automation_type,
+            "profile_id": profile_uuid
+        }
+        
+        logger.info(f"Connecting to already-running profile {profile_uuid}...")
+        
+        try:
+            response = requests.get(
+                launcher_url,
+                params=params,
+                timeout=60,
+                verify=False  # MultiLogin uses self-signed cert
+            )
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('status') == 'OK':
+                connection_info = data.get('data', {})
+                logger.info(f"Successfully connected to running profile: {profile_uuid}")
+                logger.debug(f"Connection info: {connection_info}")
+                return connection_info
+            else:
+                error_msg = data.get('message', 'Unknown error')
+                raise TikTokPosterError(
+                    f"Failed to connect to profile: {error_msg}. "
+                    f"Make sure the profile is manually started in MultiLogin app!"
+                )
+        
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error connecting to profile: {e}")
+            raise TikTokPosterError(
+                f"Failed to connect to profile: {e}. "
+                f"Make sure the profile '{profile_uuid}' is manually started in MultiLogin app!"
+            )
+    
     def start_browser(self):
         """Start the browser with MultiLogin profile using Local Launcher API."""
         logger.info(f"Starting browser with MultiLogin profile: {self.multilogin_profile_uuid}...")
         
         try:
-            # Check if multilogin_client is None
+            # If multilogin_client is None, connect to already-running profile directly
             if self.multilogin_client is None:
-                raise TikTokPosterError(
-                    "MultiLogin client is None. Please ensure MULTILOGIN_BASE_URL, "
-                    "MULTILOGIN_EMAIL, and MULTILOGIN_PASSWORD are set in .env file, "
-                    "OR manually start the profile in MultiLogin app before running this script."
+                logger.info("MultiLogin client is None - connecting to already-running profile...")
+                self.connection_info = self._connect_to_running_profile(
+                    profile_uuid=self.multilogin_profile_uuid,
+                    automation_type="playwright"
                 )
-            
-            # Start the MultiLogin profile using Local Launcher API
-            self.connection_info = self.multilogin_client.start_profile(
-                profile_uuid=self.multilogin_profile_uuid,
-                automation_type="playwright"
-            )
+            else:
+                # Start the MultiLogin profile using Local Launcher API
+                self.connection_info = self.multilogin_client.start_profile(
+                    profile_uuid=self.multilogin_profile_uuid,
+                    automation_type="playwright"
+                )
             
             # Extract connection details
             ws_endpoint = self.connection_info.get('ws_endpoint')
