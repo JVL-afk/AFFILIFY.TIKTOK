@@ -238,8 +238,8 @@ def main():
     )
     parser.add_argument(
         '--database',
-        default='data/affilify_tiktok.db',
-        help='Path to database (default: data/affilify_tiktok.db)'
+        default='data/affilify_system.db',
+        help='Path to database (default: data/affilify_system.db)'
     )
     
     args = parser.parse_args()
