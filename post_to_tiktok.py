@@ -21,6 +21,10 @@ import time
 import random
 from pathlib import Path
 from typing import List, Dict, Tuple
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -119,8 +123,21 @@ def post_videos(video_dir: str,
     total_posts = min(len(video_caption_pairs), accounts * posts_per_account)
     logger.info(f"Will make {total_posts} posts ({accounts} accounts × {posts_per_account} posts)")
     
-    # Initialize MultiLogin client
-    multilogin_client = MultiLoginClient()
+    # Initialize MultiLogin client with credentials from environment
+    multilogin_base_url = os.getenv('MULTILOGIN_BASE_URL', 'http://localhost:35000')
+    multilogin_email = os.getenv('MULTILOGIN_EMAIL', '')
+    multilogin_password = os.getenv('MULTILOGIN_PASSWORD', '')
+    
+    if not multilogin_email or not multilogin_password:
+        logger.warning("MultiLogin credentials not found in .env file")
+        logger.warning("Using Local Launcher API without authentication")
+        multilogin_client = None
+    else:
+        multilogin_client = MultiLoginClient(
+            base_url=multilogin_base_url,
+            email=multilogin_email,
+            password=multilogin_password
+        )
     
     # Post videos
     logger.info("\n" + "=" * 80)
