@@ -47,8 +47,13 @@ def load_videos_and_captions(video_dir: Path, caption_dir: Path) -> List[Tuple[P
     
     pairs = []
     for video_file in video_files:
-        # Find corresponding caption file
+        # Try multiple caption naming patterns
+        # Pattern 1: video.mp4 -> video.txt
         caption_file = caption_dir / f"{video_file.stem}.txt"
+        
+        # Pattern 2: video.mp4 -> video.mp4.txt (what we actually have!)
+        if not caption_file.exists():
+            caption_file = caption_dir / f"{video_file.name}.txt"
         
         if caption_file.exists():
             pairs.append((video_file, caption_file))
