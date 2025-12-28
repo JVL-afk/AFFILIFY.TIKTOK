@@ -82,6 +82,14 @@ class TikTokPoster:
         logger.info(f"Starting browser with MultiLogin profile: {self.multilogin_profile_uuid}...")
         
         try:
+            # Check if multilogin_client is None
+            if self.multilogin_client is None:
+                raise TikTokPosterError(
+                    "MultiLogin client is None. Please ensure MULTILOGIN_BASE_URL, "
+                    "MULTILOGIN_EMAIL, and MULTILOGIN_PASSWORD are set in .env file, "
+                    "OR manually start the profile in MultiLogin app before running this script."
+                )
+            
             # Start the MultiLogin profile using Local Launcher API
             self.connection_info = self.multilogin_client.start_profile(
                 profile_uuid=self.multilogin_profile_uuid,
@@ -136,7 +144,7 @@ class TikTokPoster:
                 self.playwright.stop()
             
             # Stop the MultiLogin profile
-            if self.multilogin_profile_uuid:
+            if self.multilogin_profile_uuid and self.multilogin_client is not None:
                 try:
                     self.multilogin_client.stop_profile(self.multilogin_profile_uuid)
                     logger.info("MultiLogin profile stopped")
