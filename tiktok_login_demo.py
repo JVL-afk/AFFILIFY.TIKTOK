@@ -22,13 +22,17 @@ import pandas as pd
 
 class TikTokLoginDemo:
     def __init__(self, profile_data):
-        self.profile_name = profile_data['Profile Name']
-        self.profile_uuid = profile_data['Profile UUID']
-        self.tiktok_username = profile_data['TikTok Username']
-        self.tiktok_password = profile_data['TikTok Password']
-        self.user_agent = profile_data.get('User Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-        self.screen_width = int(profile_data.get('Screen Width', 1920))
-        self.screen_height = int(profile_data.get('Screen Height', 1080))
+        self.profile_name = profile_data['profile_name']
+        self.profile_uuid = profile_data['profile_uuid']
+        self.tiktok_username = profile_data['tiktok_email']
+        self.tiktok_password = profile_data['tiktok_password']
+        self.proxy_host = profile_data.get('proxy_host', '')
+        self.proxy_port = profile_data.get('proxy_port', '')
+        self.proxy_username = profile_data.get('proxy_username', '')
+        self.proxy_password = profile_data.get('proxy_password', '')
+        self.user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        self.screen_width = 1920
+        self.screen_height = 1080
         
         self.cookies_file = Path(f"data/cookies/{self.profile_name}_cookies.json")
         self.cookies_file.parent.mkdir(parents=True, exist_ok=True)
@@ -239,9 +243,9 @@ async def main():
     # Use first profile for demo (TIKTOK1)
     profile_data = df.iloc[0].to_dict()
     
-    print(f"\n📋 Testing with profile: {profile_data['Profile Name']}")
-    print(f"   UUID: {profile_data['Profile UUID']}")
-    print(f"   TikTok Username: {profile_data['TikTok Username']}")
+    print(f"\n📋 Testing with profile: {profile_data['profile_name']}")
+    print(f"   UUID: {profile_data['profile_uuid']}")
+    print(f"   TikTok Email: {profile_data['tiktok_email']}")
     
     demo = TikTokLoginDemo(profile_data)
     
