@@ -29,6 +29,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.database import Database
 from pillar1_infrastructure.multilogin_client import MultiLoginClient, MultiLoginAPIError
+from pillar1_infrastructure.browser_port_scanner import BrowserPortScanner
 
 logger = logging.getLogger(__name__)
 
@@ -80,80 +81,99 @@ class TikTokPoster:
         """Context manager exit."""
         self.close_browser()
     
-    def _connect_to_running_profile(self, profile_uuid: str, automation_type: str = "playwright") -> Dict[str, Any]:
+    def _connect_to_running_profile_via_port_scan(self, profile_index: int = 0) -> Dict[str, Any]:
         """
-        Connect to an already-running MultiLogin profile using Local Launcher API.
+        Connect to an already-running browser profile by scanning local ports.
         
-        This is used when multilogin_client is None (no credentials).
-        Assumes the profile is already manually started in MultiLogin app.
+        This method bypasses the MultiLogin API entirely and directly connects
+        to browsers running on local ports via Chrome DevTools Protocol.
         
         Args:
-            profile_uuid: UUID of the already-running profile
-            automation_type: Type of automation ("playwright" or "selenium")
+            profile_index: Index of the browser profile to use (0-based)
         
         Returns:
-            Dictionary containing connection information (ws_endpoint, http_debug_port, etc.)
+            Dictionary containing connection information (ws_endpoint, port, etc.)
         
         Raises:
-            TikTokPosterError: If connection fails
+            TikTokPosterError: If no running browser found
         """
-        launcher_url = "https://launcher.mlx.yt:45001/api/v1/profile/start"
-        
-        params = {
-            "automation_type": automation_type,
-            "profile_id": profile_uuid
-        }
-        
-        logger.info(f"Connecting to already-running profile {profile_uuid}...")
+        logger.info(f"Scanning for running browsers (profile index: {profile_index})...")
         
         try:
-            response = requests.get(
-                launcher_url,
-                params=params,
-                timeout=60,
-                verify=False  # MultiLogin uses self-signed cert
-            )
+            scanner = BrowserPortScanner()
+            browsers = scanner.scan_for_browsers()
             
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('status') == 'OK':
-                connection_info = data.get('data', {})
-                logger.info(f"Successfully connected to running profile: {profile_uuid}")
-                logger.debug(f"Connection info: {connection_info}")
-                return connection_info
-            else:
-                error_msg = data.get('message', 'Unknown error')
+            if not browsers:
                 raise TikTokPosterError(
-                    f"Failed to connect to profile: {error_msg}. "
-                    f"Make sure the profile is manually started in MultiLogin app!"
+                    "No running browsers found! "
+                    "Make sure you have manually started profiles in MultiLogin X app."
                 )
+            
+            if profile_index >= len(browsers):
+                raise TikTokPosterError(
+                    f"Profile index {profile_index} not found. "
+                    f"Only {len(browsers)} browser(s) running. "
+                    f"Make sure you have started enough profiles in MultiLogin X app."
+                )
+            
+            browser = browsers[profile_index]
+            
+            # Get WebSocket endpoint
+            ws_endpoint = browser.get('ws_endpoint')
+            
+            if not ws_endpoint:
+                # Fallback: try to get from first target
+                if browser.get('targets'):
+                    first_target = browser['targets'][0]
+                    ws_endpoint = first_target.get('webSocketDebuggerUrl')
+            
+            if not ws_endpoint:
+                # Last resort: construct from port
+                port = browser['port']
+                ws_endpoint = f"ws://127.0.0.1:{port}/devtools/browser"
+            
+            connection_info = {
+                'ws_endpoint': ws_endpoint,
+                'port': browser['port'],
+                'browser': browser.get('browser', 'Unknown'),
+                'cdp_url': browser.get('cdp_url', ''),
+                'method': 'port_scan'  # Indicate this was found via port scanning
+            }
+            
+            logger.info(f"✅ Found running browser on port {browser['port']}")
+            logger.info(f"   Browser: {browser.get('browser', 'Unknown')}")
+            logger.info(f"   WS Endpoint: {ws_endpoint}")
+            
+            return connection_info
         
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error connecting to profile: {e}")
+        except Exception as e:
+            logger.error(f"Error scanning for browsers: {e}")
             raise TikTokPosterError(
-                f"Failed to connect to profile: {e}. "
-                f"Make sure the profile '{profile_uuid}' is manually started in MultiLogin app!"
+                f"Failed to find running browser: {e}. "
+                f"Make sure you have manually started profiles in MultiLogin X app!"
             )
     
     def start_browser(self):
-        """Start the browser with MultiLogin profile using Local Launcher API."""
-        logger.info(f"Starting browser with MultiLogin profile: {self.multilogin_profile_uuid}...")
+        """Start the browser by connecting to already-running MultiLogin profiles."""
+        logger.info(f"Connecting to browser (profile: {self.multilogin_profile_uuid})...")
         
         try:
-            # If multilogin_client is None, connect to already-running profile directly
-            if self.multilogin_client is None:
-                logger.info("MultiLogin client is None - connecting to already-running profile...")
-                self.connection_info = self._connect_to_running_profile(
-                    profile_uuid=self.multilogin_profile_uuid,
-                    automation_type="playwright"
-                )
-            else:
-                # Start the MultiLogin profile using Local Launcher API
-                self.connection_info = self.multilogin_client.start_profile(
-                    profile_uuid=self.multilogin_profile_uuid,
-                    automation_type="playwright"
-                )
+            # Extract profile index from UUID (e.g., "TIKTOK1" -> 0, "TIKTOK2" -> 1)
+            # This assumes profile names follow the pattern TIKTOK1, TIKTOK2, etc.
+            profile_index = 0
+            if isinstance(self.multilogin_profile_uuid, str):
+                # Try to extract number from profile name
+                import re
+                match = re.search(r'(\d+)$', self.multilogin_profile_uuid)
+                if match:
+                    profile_index = int(match.group(1)) - 1  # Convert to 0-based index
+                    logger.info(f"Extracted profile index: {profile_index} from {self.multilogin_profile_uuid}")
+            
+            # Use port scanning to find running browser
+            logger.info("Using port scanning to find running browser...")
+            self.connection_info = self._connect_to_running_profile_via_port_scan(
+                profile_index=profile_index
+            )
             
             # Extract connection details
             ws_endpoint = self.connection_info.get('ws_endpoint')
