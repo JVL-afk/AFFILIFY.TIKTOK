@@ -20,14 +20,14 @@ class BrowserPortScanner:
     """Scans for running browsers on local ports and retrieves CDP endpoints."""
     
     # Common port ranges for Chrome DevTools Protocol
-    DEFAULT_PORT_RANGE = (1180, 8001)
+    DEFAULT_PORT_RANGE = (9222, 9250)
     
     def __init__(self, port_range: tuple = None):
         """
         Initialize the browser port scanner.
         
         Args:
-            port_range: Tuple of (start_port, end_port) to scan. Defaults to (1180, 8001).
+            port_range: Tuple of (start_port, end_port) to scan. Defaults to (9222, 9250).
         """
         self.port_range = port_range or self.DEFAULT_PORT_RANGE
         logger.info(f"Initialized BrowserPortScanner with port range {self.port_range}")
