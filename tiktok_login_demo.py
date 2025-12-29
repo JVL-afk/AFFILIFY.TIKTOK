@@ -85,7 +85,7 @@ class TikTokLoginDemo:
         async with async_playwright() as p:
             # Launch browser with fingerprinting
             browser = await p.chromium.launch(
-                headless=False,
+                headless=True,  # HEADLESS MODE for Linux server!
                 args=[
                     f'--user-agent={self.user_agent}',
                     '--disable-blink-features=AutomationControlled',
@@ -145,7 +145,7 @@ class TikTokLoginDemo:
         
         async with async_playwright() as p:
             browser = await p.chromium.launch(
-                headless=False,
+                headless=True,  # HEADLESS MODE for Linux server!
                 args=[
                     f'--user-agent={self.user_agent}',
                     '--disable-blink-features=AutomationControlled',
